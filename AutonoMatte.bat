@@ -98,6 +98,21 @@ function Ensure-Wheel {
     [IO.File]::WriteAllBytes($Wheel, [Convert]::FromBase64String($encoded))
 }
 
+function Install-CoreRuntime {
+    Write-Title 'Temel bağımlılıklar kuruluyor'
+    Invoke-Checked $Python @(
+        '-m','pip','install',
+        'numpy==1.26.4',
+        'Pillow==11.3.0',
+        'scipy==1.16.3',
+        'fastapi>=0.115,<1',
+        'uvicorn>=0.32,<1',
+        'python-multipart>=0.0.12'
+    )
+    Invoke-Checked $Python @('-m','pip','install','--no-deps','--force-reinstall',$Wheel)
+    Invoke-Checked $Python @('-m','pip','check')
+}
+
 function Ensure-Runtime([switch]$Universal) {
     if (-not (Test-Path -LiteralPath $Python)) {
         Write-Title 'İlk kurulum hazırlanıyor'
@@ -116,15 +131,15 @@ function Ensure-Runtime([switch]$Universal) {
     $stamp = Join-Path $Runtime 'autonomatte-0.6.1.ready'
     if ((Test-Path $stamp) -and -not $Universal) { return }
 
+    Install-CoreRuntime
     $gpu = Get-GpuMode
-    Write-Title "Bağımlılıklar kuruluyor ($gpu)"
+    Write-Title "Hızlandırma bağımlılıkları kuruluyor ($gpu)"
     if ($Universal) {
         try {
             Invoke-Checked $Python @('-m','pip','install','torch','torchvision','--index-url','https://download.pytorch.org/whl/cu128')
         } catch {
             Invoke-Checked $Python @('-m','pip','install','torch','torchvision')
         }
-        Invoke-Checked $Python @('-m','pip','install',$Wheel)
         Invoke-Checked $Python @('-m','pip','install','transformers>=4.49,<6','accelerate>=1.2','safetensors>=0.4','huggingface-hub>0.25','opencv-python>=4.10','timm>=1.0','scikit-image>=0.24','kornia>=0.8','einops>=0.8','tqdm>=4.67','prettytable>=3.12','rembg[cpu]>=2.0.67','pillow-heif>=0.18')
     } elseif ($gpu -eq 'nvidia') {
         try {
@@ -132,16 +147,14 @@ function Ensure-Runtime([switch]$Universal) {
         } catch {
             Invoke-Checked $Python @('-m','pip','install','torch','torchvision')
         }
-        Invoke-Checked $Python @('-m','pip','install',$Wheel)
         Invoke-Checked $Python @('-m','pip','install','transformers>=4.49,<6','accelerate>=1.2','safetensors>=0.4','huggingface-hub>0.25','opencv-python>=4.10','timm>=1.0','scikit-image>=0.24','kornia>=0.8','einops>=0.8','tqdm>=4.67','prettytable>=3.12','rembg[gpu]>=2.0.67','pillow-heif>=0.18')
         try { Invoke-Checked $Python @('-m','pip','install','git+https://github.com/PramaLLC/BEN2.git') } catch { Write-Warning 'BEN2 kurulamadı; BiRefNet kullanılacak.' }
     } elseif ($gpu -eq 'amd') {
-        Invoke-Checked $Python @('-m','pip','install',$Wheel)
         Invoke-Checked $Python @('-m','pip','install','rembg[cpu]>=2.0.67','onnxruntime-directml>=1.20','pillow-heif>=0.18')
     } else {
-        Invoke-Checked $Python @('-m','pip','install',$Wheel)
         Invoke-Checked $Python @('-m','pip','install','rembg[cpu]>=2.0.67','pillow-heif>=0.18')
     }
+    Invoke-Checked $Python @('-m','pip','check')
     Set-Content -LiteralPath $stamp -Value (Get-Date).ToString('o') -Encoding UTF8
 }
 
