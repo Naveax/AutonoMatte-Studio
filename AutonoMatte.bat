@@ -11,8 +11,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $Root = Split-Path -Parent $env:AUTONOMATTE_SELF
-$App = Join-Path $Root '.app'
+$Payload = Join-Path $Root '.payload'
 $Runtime = Join-Path $Root '.runtime'
+$Wheel = Join-Path $Runtime 'autonomatte-0.6.1-py3-none-any.whl'
 $Models = Join-Path $Root '.models'
 $Python = Join-Path $Runtime 'Scripts\python.exe'
 $Mode = [string]$env:AUTONOMATTE_ARGS
@@ -88,6 +89,15 @@ function Get-GpuMode {
     return 'cpu'
 }
 
+function Ensure-Wheel {
+    if (Test-Path -LiteralPath $Wheel) { return }
+    Write-Title 'Uygulama paketi hazırlanıyor'
+    $parts = Get-ChildItem -LiteralPath $Payload -Filter 'wheel.part*.b64' | Sort-Object Name
+    if ($parts.Count -eq 0) { throw 'Embedded application payload was not found.' }
+    $encoded = ($parts | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join ''
+    [IO.File]::WriteAllBytes($Wheel, [Convert]::FromBase64String($encoded))
+}
+
 function Ensure-Runtime([switch]$Universal) {
     if (-not (Test-Path -LiteralPath $Python)) {
         Write-Title 'İlk kurulum hazırlanıyor'
@@ -101,6 +111,7 @@ function Ensure-Runtime([switch]$Universal) {
         }
         Invoke-Checked $Python @('-m','pip','install','--upgrade','pip','setuptools','wheel')
     }
+    Ensure-Wheel
 
     $stamp = Join-Path $Runtime 'autonomatte-0.6.1.ready'
     if ((Test-Path $stamp) -and -not $Universal) { return }
@@ -113,19 +124,23 @@ function Ensure-Runtime([switch]$Universal) {
         } catch {
             Invoke-Checked $Python @('-m','pip','install','torch','torchvision')
         }
-        Invoke-Checked $Python @('-m','pip','install','-e',"${App}[birefnet,rembg-cpu,formats]")
+        Invoke-Checked $Python @('-m','pip','install',$Wheel)
+        Invoke-Checked $Python @('-m','pip','install','transformers>=4.49,<6','accelerate>=1.2','safetensors>=0.4','huggingface-hub>0.25','opencv-python>=4.10','timm>=1.0','scikit-image>=0.24','kornia>=0.8','einops>=0.8','tqdm>=4.67','prettytable>=3.12','rembg[cpu]>=2.0.67','pillow-heif>=0.18')
     } elseif ($gpu -eq 'nvidia') {
         try {
             Invoke-Checked $Python @('-m','pip','install','torch','torchvision','--index-url','https://download.pytorch.org/whl/cu128')
         } catch {
             Invoke-Checked $Python @('-m','pip','install','torch','torchvision')
         }
-        Invoke-Checked $Python @('-m','pip','install','-e',"${App}[birefnet,rembg-gpu,formats]")
+        Invoke-Checked $Python @('-m','pip','install',$Wheel)
+        Invoke-Checked $Python @('-m','pip','install','transformers>=4.49,<6','accelerate>=1.2','safetensors>=0.4','huggingface-hub>0.25','opencv-python>=4.10','timm>=1.0','scikit-image>=0.24','kornia>=0.8','einops>=0.8','tqdm>=4.67','prettytable>=3.12','rembg[gpu]>=2.0.67','pillow-heif>=0.18')
         try { Invoke-Checked $Python @('-m','pip','install','git+https://github.com/PramaLLC/BEN2.git') } catch { Write-Warning 'BEN2 kurulamadı; BiRefNet kullanılacak.' }
     } elseif ($gpu -eq 'amd') {
-        Invoke-Checked $Python @('-m','pip','install','-e',"${App}[rembg-dml,formats]")
+        Invoke-Checked $Python @('-m','pip','install',$Wheel)
+        Invoke-Checked $Python @('-m','pip','install','rembg[cpu]>=2.0.67','onnxruntime-directml>=1.20','pillow-heif>=0.18')
     } else {
-        Invoke-Checked $Python @('-m','pip','install','-e',"${App}[rembg-cpu,formats]")
+        Invoke-Checked $Python @('-m','pip','install',$Wheel)
+        Invoke-Checked $Python @('-m','pip','install','rembg[cpu]>=2.0.67','pillow-heif>=0.18')
     }
     Set-Content -LiteralPath $stamp -Value (Get-Date).ToString('o') -Encoding UTF8
 }
