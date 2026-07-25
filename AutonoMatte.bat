@@ -99,16 +99,22 @@ function Ensure-Wheel {
 }
 
 function Install-CoreRuntime {
-    Write-Title 'Temel bağımlılıklar kuruluyor'
+    Write-Title 'Bilimsel görüntü bağımlılıkları kuruluyor'
     Invoke-Checked $Python @(
-        '-m','pip','install',
+        '-m','pip','install','--only-binary=:all:',
         'numpy==1.26.4',
         'Pillow==11.3.0',
-        'scipy==1.16.3',
+        'scipy==1.16.3'
+    )
+
+    Write-Title 'Web arayüzü bağımlılıkları kuruluyor'
+    Invoke-Checked $Python @(
+        '-m','pip','install',
         'fastapi>=0.115,<1',
-        'uvicorn>=0.32,<1',
+        'uvicorn[standard]>=0.32,<1',
         'python-multipart>=0.0.12'
     )
+
     Invoke-Checked $Python @('-m','pip','install','--no-deps','--force-reinstall',$Wheel)
     Invoke-Checked $Python @('-m','pip','check')
 }
