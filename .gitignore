@@ -1,0 +1,12 @@
+.runtime/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.log
+outputs/
+.app/dist/
+.app/build/
+.app/*.egg-info/
+.models/**/*.lock
+.models/**/*.part
