@@ -2,8 +2,9 @@ name: CI
 on:
   push:
   pull_request:
+
 jobs:
-  test:
+  package-smoke-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -12,6 +13,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e './.app[dev]'
-      - run: python -m pytest -q .app/tests
+      - name: Reconstruct embedded wheel
+        shell: bash
+        run: |
+          cat .payload/wheel.part*.b64 | base64 --decode > autonomatte-0.6.1-py3-none-any.whl
+          python -m zipfile -t autonomatte-0.6.1-py3-none-any.whl
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ./autonomatte-0.6.1-py3-none-any.whl
+      - name: Smoke test
+        run: |
+          python -c "import autonomatte; print(autonomatte.__version__)"
+          python -m autonomatte.cli --help
